@@ -51,7 +51,7 @@ const profilePda = PublicKey.findProgramAddressSync(
 )[0];
 
 // Paste here the mint address for challenge1 token
-const mint = new PublicKey("FHTtc2oBuyHa1UazbZ5GiWb4Y6s1FUupc9csuS4UWZPD");
+const mint = new PublicKey("CnNMSSNTfGWxGq1LuxTTQi15ozdnq5SDMjkET1aAF8xd");
 
 // Create the PDA for the Challenge1 Vault
 const vault = PublicKey.findProgramAddressSync(

@@ -38,7 +38,7 @@ let keypair = umi.eddsa.createKeypairFromSecretKey(new Uint8Array(wallet));
 const signerKeypair = createSignerFromKeypair(umi, keypair);
 umi.use(signerIdentity(signerKeypair));
 
-const mint = publicKey("FHTtc2oBuyHa1UazbZ5GiWb4Y6s1FUupc9csuS4UWZPD");
+const mint = publicKey("CnNMSSNTfGWxGq1LuxTTQi15ozdnq5SDMjkET1aAF8xd");
 const tokenMetadataProgramId = publicKey(
   "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
 );

@@ -47,7 +47,7 @@ const authPda = PublicKey.findProgramAddressSync(
 )[0];
 
 // Paste here the mint address for challenge1 token
-const mint = new PublicKey("7UJW56YheRRZNwCu2GJG7GrDkMWm9bn4vYBBZiJX9pV4");
+const mint = new PublicKey("pi29ZewBwbbJmhdNiWT3Pr6ddXSWun2Qqw8hYdNxXxp");
 
 (async () => {
   try {
