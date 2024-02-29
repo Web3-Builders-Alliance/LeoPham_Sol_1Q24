@@ -15,13 +15,18 @@ const maker = Keypair.generate();
 const taker = Keypair.generate();
 const seed = new anchor.BN(1);
 
-const [vault] = PublicKey.findProgramAddressSync(
+const [vault_state] = PublicKey.findProgramAddressSync(
   [
-    Buffer.from("vault"),
+    Buffer.from("vault_state"),
     seed.toBuffer("le", 8),
     maker.publicKey.toBuffer(),
     taker.publicKey.toBuffer(),
   ],
+  program.programId
+);
+
+const [vault_keeper] = PublicKey.findProgramAddressSync(
+  [Buffer.from("vault"), vault_state.toBuffer()],
   program.programId
 );
 
@@ -63,7 +68,8 @@ describe("vault", () => {
       .accounts({
         maker: maker.publicKey,
         taker: taker.publicKey,
-        vault,
+        vaultKeeper: vault_keeper,
+        vaultState: vault_state,
         systemProgram: SystemProgram.programId,
       })
       .signers([maker])
@@ -79,26 +85,29 @@ describe("vault", () => {
       .cancel()
       .accounts({
         maker: maker.publicKey,
-        vault,
+        vaultKeeper: vault_keeper,
+        vaultState: vault_state,
         systemProgram: SystemProgram.programId,
       })
       .signers([maker])
       .rpc();
-    console.log("Your transaction signature", tx);
+    log(tx);
   });
 
-  // it("Claim the deposit", async () => {
-  //   console.log(taker.publicKey.toBase58());
-  //   // Add your test here.
-  //   const tx = await program.methods
-  //     .claim()
-  //     .accounts({
-  //       taker: taker.publicKey,
-  //       vault,
-  //       systemProgram: SystemProgram.programId,
-  //     })
-  //     .signers([taker])
-  //     .rpc();
-  //   log(tx);
-  // });
+  it("Claim the deposit", async () => {
+    console.log(taker.publicKey.toBase58());
+    // Add your test here.
+    const tx = await program.methods
+      .claim()
+      .accounts({
+        taker: taker.publicKey,
+        maker: maker.publicKey,
+        vaultKeeper: vault_keeper,
+        vaultState: vault_state,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([taker])
+      .rpc();
+    log(tx);
+  });
 });
