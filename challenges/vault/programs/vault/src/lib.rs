@@ -8,7 +8,7 @@ declare_id!("7Qc3nfhGh6tJgRJMVjDcek83SD4pLnCr5vbYC4Rn7Sxs");
 pub mod vault {
     use super::*;
 
-    pub fn deposit(ctx: Context<Deposit>, seed: u64, amount: u64) -> Result<()> {
+    pub fn deposit(ctx: Context<Deposit>, seed: u64, amount: u64, lock_seconds: i64) -> Result<()> {
         ctx.accounts.vault_state.set_inner(VaultState {
             maker: ctx.accounts.maker.key(),
             taker: ctx.accounts.taker.key(),
@@ -17,7 +17,8 @@ pub mod vault {
             vault_keeper: ctx.accounts.vault_keeper.key(),
             vault_bump: ctx.bumps.vault_keeper,
             created_at: Clock::get()?.unix_timestamp,
-            amount: amount
+            amount: amount,
+            lock_seconds: lock_seconds,
         });
         
         let transfer_accounts = Transfer {
@@ -107,7 +108,7 @@ pub struct Deposit<'info> {
 
 
 impl Space for VaultState {
-    const INIT_SPACE: usize = 8 + 32 + 32 + 8 + 1 + 32 + 1 + 8 + 8;
+    const INIT_SPACE: usize = 8 + 32 + 32 + 8 + 1 + 32 + 1 + 8 + 8 + 8;
 }
 
 #[account]
@@ -120,6 +121,7 @@ pub struct VaultState {
     pub vault_bump: u8,
     pub created_at: i64,
     pub amount: u64,
+    pub lock_seconds: i64,
 }
 
 #[derive(Accounts)]
@@ -169,6 +171,7 @@ pub struct Claim<'info> {
     #[account(mut, 
         has_one = taker,
         constraint = vault_keeper.key() == vault_state.vault_keeper,
+        constraint = vault_state.created_at + vault_state.lock_seconds < Clock::get()?.unix_timestamp @ ErrorMessages::VaultNotExpired,
         close = maker,
         seeds = [
             b"vault_state",
@@ -182,3 +185,9 @@ pub struct Claim<'info> {
     pub system_program: Program<'info, System>,
 }
 
+
+#[error_code]
+pub enum ErrorMessages {
+    #[msg("Vault has not expired")]
+    VaultNotExpired,
+}

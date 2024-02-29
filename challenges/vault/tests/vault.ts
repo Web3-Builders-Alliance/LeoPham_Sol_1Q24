@@ -1,5 +1,5 @@
 import * as anchor from "@coral-xyz/anchor";
-import { Program } from "@coral-xyz/anchor";
+import { AnchorError, Program } from "@coral-xyz/anchor";
 import { Vault } from "../target/types/vault";
 import {
   Keypair,
@@ -7,28 +7,15 @@ import {
   LAMPORTS_PER_SOL,
   SystemProgram,
 } from "@solana/web3.js";
+import { assert, expect } from "chai";
 
 const program = anchor.workspace.Vault as Program<Vault>;
 const connection = anchor.getProvider().connection;
+// Configure the client to use the local cluster.
+anchor.setProvider(anchor.AnchorProvider.env());
 
 const maker = Keypair.generate();
 const taker = Keypair.generate();
-const seed = new anchor.BN(1);
-
-const [vault_state] = PublicKey.findProgramAddressSync(
-  [
-    Buffer.from("vault_state"),
-    seed.toBuffer("le", 8),
-    maker.publicKey.toBuffer(),
-    taker.publicKey.toBuffer(),
-  ],
-  program.programId
-);
-
-const [vault_keeper] = PublicKey.findProgramAddressSync(
-  [Buffer.from("vault"), vault_state.toBuffer()],
-  program.programId
-);
 
 const confirm = async (signature: string): Promise<string> => {
   const block = await connection.getLatestBlockhash();
@@ -49,22 +36,33 @@ const log = async (signature: string): Promise<string> => {
 it("Airdrop", async () => {
   await connection
     .requestAirdrop(maker.publicKey, LAMPORTS_PER_SOL * 10)
-    .then(confirm)
-    .then(log);
+    .then(confirm);
+  // .then(log);
   await connection
     .requestAirdrop(taker.publicKey, LAMPORTS_PER_SOL * 10)
-    .then(confirm)
-    .then(log);
+    .then(confirm);
+  // .then(log);
 });
-describe("vault", () => {
-  // Configure the client to use the local cluster.
-  anchor.setProvider(anchor.AnchorProvider.env());
+describe("Create and Cancel successfully", () => {
+  const seed = new anchor.BN(1);
+  const [vault_state] = PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("vault_state"),
+      seed.toBuffer("le", 8),
+      maker.publicKey.toBuffer(),
+      taker.publicKey.toBuffer(),
+    ],
+    program.programId
+  );
+
+  const [vault_keeper] = PublicKey.findProgramAddressSync(
+    [Buffer.from("vault"), vault_state.toBuffer()],
+    program.programId
+  );
 
   it("Deposit SOL into Vault!", async () => {
-    console.log({ makerDeposit: maker.publicKey.toBase58() });
-    // Add your test here.
     const tx = await program.methods
-      .deposit(seed, new anchor.BN(1 * LAMPORTS_PER_SOL))
+      .deposit(seed, new anchor.BN(1 * LAMPORTS_PER_SOL), new anchor.BN(1))
       .accounts({
         maker: maker.publicKey,
         taker: taker.publicKey,
@@ -74,13 +72,10 @@ describe("vault", () => {
       })
       .signers([maker])
       .rpc();
-
-    log(tx);
+    expect(tx).to.be.ok;
   });
 
   it("Cancel the deposit", async () => {
-    console.log({ maker: maker.publicKey.toBase58() });
-    // Add your test here.
     const tx = await program.methods
       .cancel()
       .accounts({
@@ -91,12 +86,43 @@ describe("vault", () => {
       })
       .signers([maker])
       .rpc();
-    log(tx);
+    expect(tx).to.be.ok;
+  });
+});
+
+describe("Create and Claim successfully", () => {
+  const seed = new anchor.BN(2);
+  const [vault_state] = PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("vault_state"),
+      seed.toBuffer("le", 8),
+      maker.publicKey.toBuffer(),
+      taker.publicKey.toBuffer(),
+    ],
+    program.programId
+  );
+
+  const [vault_keeper] = PublicKey.findProgramAddressSync(
+    [Buffer.from("vault"), vault_state.toBuffer()],
+    program.programId
+  );
+
+  it("Deposit SOL into Vault!", async () => {
+    const tx = await program.methods
+      .deposit(seed, new anchor.BN(1 * LAMPORTS_PER_SOL), new anchor.BN(-1))
+      .accounts({
+        maker: maker.publicKey,
+        taker: taker.publicKey,
+        vaultKeeper: vault_keeper,
+        vaultState: vault_state,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([maker])
+      .rpc();
+    expect(tx).to.be.ok;
   });
 
   it("Claim the deposit", async () => {
-    console.log(taker.publicKey.toBase58());
-    // Add your test here.
     const tx = await program.methods
       .claim()
       .accounts({
@@ -108,6 +134,59 @@ describe("vault", () => {
       })
       .signers([taker])
       .rpc();
-    log(tx);
+    expect(tx).to.be.ok;
+  });
+});
+
+describe("Create and Claim fail because lock_time is not expired", () => {
+  const seed = new anchor.BN(3);
+  const [vault_state] = PublicKey.findProgramAddressSync(
+    [
+      Buffer.from("vault_state"),
+      seed.toBuffer("le", 8),
+      maker.publicKey.toBuffer(),
+      taker.publicKey.toBuffer(),
+    ],
+    program.programId
+  );
+
+  const [vault_keeper] = PublicKey.findProgramAddressSync(
+    [Buffer.from("vault"), vault_state.toBuffer()],
+    program.programId
+  );
+
+  it("Deposit SOL into Vault!", async () => {
+    const tx = await program.methods
+      .deposit(seed, new anchor.BN(1 * LAMPORTS_PER_SOL), new anchor.BN(5))
+      .accounts({
+        maker: maker.publicKey,
+        taker: taker.publicKey,
+        vaultKeeper: vault_keeper,
+        vaultState: vault_state,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([maker])
+      .rpc();
+    expect(tx).to.be.ok;
+  });
+
+  it("Claim the deposit", async () => {
+    try {
+      const tx = await program.methods
+        .claim()
+        .accounts({
+          taker: taker.publicKey,
+          maker: maker.publicKey,
+          vaultKeeper: vault_keeper,
+          vaultState: vault_state,
+          systemProgram: SystemProgram.programId,
+        })
+        .signers([taker])
+        .rpc();
+    } catch (error) {
+      assert.isTrue(error instanceof AnchorError);
+      assert.equal(error.error.errorCode.number, 6000);
+      assert.equal(error.error.errorMessage, "Vault has not expired");
+    }
   });
 });
