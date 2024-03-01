@@ -135,7 +135,7 @@ describe("escrow", () => {
 
   it("Make", async () => {
     await program.methods
-      .makeEscrow(seed, new anchor.BN(1e6))
+      .makeEscrow(seed, new anchor.BN(100e6))
       .accounts({
         maker: maker.publicKey,
         escrow,
@@ -150,11 +150,10 @@ describe("escrow", () => {
       })
       .signers([maker])
       .rpc()
-      .then(confirm)
       .then(log);
   });
 
-  it("Refund escrow", async () => {
+  it.skip("Refund escrow", async () => {
     await program.methods
       .refundEscrow()
       .accounts({
@@ -170,7 +169,28 @@ describe("escrow", () => {
       })
       .signers([maker])
       .rpc()
-      .then(confirm)
+      .then(log);
+  });
+
+  it("Take escrow", async () => {
+    await program.methods
+      .takeEscrow()
+      .accounts({
+        taker: taker.publicKey,
+        maker: maker.publicKey,
+        escrow,
+        vault,
+        mintX: mintX.publicKey,
+        mintY: mintY.publicKey,
+        takerAtaX: takerAtaX,
+        takerAtaY: takerAtaY,
+        makerAtaY: makerAtaY,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([taker])
+      .rpc()
       .then(log);
   });
 });

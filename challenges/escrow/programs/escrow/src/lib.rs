@@ -20,4 +20,9 @@ pub mod escrow {
         ctx.accounts.empty_vault()?;
         ctx.accounts.close_vault()
     }
+
+    pub fn take_escrow(ctx: Context<Take>) -> Result<()> {
+        ctx.accounts.pay_back()?;
+        ctx.accounts.take()
+    }
 }

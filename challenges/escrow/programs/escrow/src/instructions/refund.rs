@@ -23,8 +23,9 @@ pub struct Refund<'info> {
         mut,
         has_one = mint_x,
         has_one = mint_y,
+        has_one = maker,
         close = maker,
-        seeds = [b"escrow", maker.key().as_ref(), escrow.seed.to_le_bytes().as_ref()],
+        seeds = [b"escrow", escrow.maker.as_ref(), escrow.seed.to_le_bytes().as_ref()],
         bump 
     )]
     pub escrow: Account<'info, Escrow>,
@@ -40,9 +41,6 @@ pub struct Refund<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
-pub fn handler(_ctx: Context<Refund>) -> Result<()> {
-    Ok(())
-}
 
 impl<'info> Refund<'info> {
     pub fn empty_vault(&mut self) -> Result<()> {
@@ -70,27 +68,27 @@ impl<'info> Refund<'info> {
     }
 
     pub fn close_vault(&mut self) -> Result<()> {
-      let signer_seeds: [&[&[u8]]; 1] = [
-        &[
-            b"escrow",
-            self.maker.to_account_info().key.as_ref(),
-            &self.escrow.seed.to_le_bytes()[..],
-            &[self.escrow.bump],
-        ],
-    ];
+        let signer_seeds: [&[&[u8]]; 1] = [
+            &[
+                b"escrow",
+                self.maker.to_account_info().key.as_ref(),
+                &self.escrow.seed.to_le_bytes()[..],
+                &[self.escrow.bump],
+            ],
+        ];
 
-    let close_accounts = CloseAccount {
-        account: self.vault.to_account_info(),
-        destination: self.maker.to_account_info(),
-        authority: self.escrow.to_account_info(),
-    };
+        let close_accounts = CloseAccount {
+            account: self.vault.to_account_info(),
+            destination: self.maker.to_account_info(),
+            authority: self.escrow.to_account_info(),
+        };
 
-    let cpi_ctx = CpiContext::new_with_signer(
-        self.token_program.to_account_info(),
-        close_accounts,
-        &signer_seeds
-    );
+        let cpi_ctx = CpiContext::new_with_signer(
+            self.token_program.to_account_info(),
+            close_accounts,
+            &signer_seeds
+        );
 
-    close_account(cpi_ctx)
+        close_account(cpi_ctx)
     }
 }

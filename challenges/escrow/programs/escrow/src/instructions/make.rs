@@ -54,6 +54,7 @@ impl<'info> Make<'info> {
             mint_y: self.mint_y.to_account_info().key(),
             amount,
             bump: bumps.escrow,
+            maker: self.maker.to_account_info().key(),
         });
 
         // Transfer the amount of mint_x from the maker to the escrow
