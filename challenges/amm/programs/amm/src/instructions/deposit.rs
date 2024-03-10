@@ -1,13 +1,18 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    associated_token::AssociatedToken, token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked, MintTo, mint_to}
+    associated_token::AssociatedToken,
+    token_interface::{
+        mint_to, transfer_checked, Mint, MintTo, TokenAccount, TokenInterface, TransferChecked,
+    },
 };
 use constant_product_curve::ConstantProduct;
 
-use crate::{assert_non_zero, assert_not_expired, assert_not_locked, error::AmmError, Config, AUTH_SEED, CONFIG_SEED, LP_SEED};
+use crate::{
+    assert_non_zero, assert_not_expired, assert_not_locked, error::AmmError, Config, AUTH_SEED,
+    CONFIG_SEED, LP_SEED,
+};
 
 #[derive(Accounts)]
-#[instruction(seed: u64)]
 pub struct Deposit<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
@@ -20,26 +25,26 @@ pub struct Deposit<'info> {
     )]
     pub mint_lp: Box<InterfaceAccount<'info, Mint>>,
     #[account(
-        mut, 
-        associated_token::mint = config.mint_x,
+        mut,
+        associated_token::mint = mint_x,
         associated_token::authority = auth,
     )]
     pub vault_x: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         mut,
-        associated_token::mint = config.mint_y,
+        associated_token::mint = mint_y,
         associated_token::authority = auth,
     )]
     pub vault_y: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-        mut, 
-        associated_token::mint = config.mint_x,
+        mut,
+        associated_token::mint = mint_x,
         associated_token::authority = user,
     )]
     pub user_x: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
         mut,
-        associated_token::mint = config.mint_y,
+        associated_token::mint = mint_y,
         associated_token::authority = user,
     )]
     pub user_y: Box<InterfaceAccount<'info, TokenAccount>>,
@@ -51,12 +56,12 @@ pub struct Deposit<'info> {
     )]
     pub user_lp: Box<InterfaceAccount<'info, TokenAccount>>,
     /// CHECK: This is safe because it's just used to sign
-    #[account(seeds = [AUTH_SEED.as_ref()], bump)]
+    #[account(seeds = [AUTH_SEED.as_ref()], bump = config.auth_bump)]
     pub auth: UncheckedAccount<'info>,
     #[account(
         has_one = mint_x,
         has_one = mint_y,
-        seeds = [CONFIG_SEED.as_ref(), seed.to_le_bytes().as_ref()],
+        seeds = [CONFIG_SEED.as_ref(), config.seed.to_le_bytes().as_ref()],
         bump = config.config_bump
     )]
     pub config: Box<Account<'info, Config>>,
@@ -65,49 +70,65 @@ pub struct Deposit<'info> {
     pub system_program: Program<'info, System>,
 }
 
-impl<'info> Deposit<'info>{
-    pub fn deposit( &self,
+impl<'info> Deposit<'info> {
+    pub fn deposit(
+        &self,
         amount: u64, // Amount of LP token to claim
-        max_x: u64, // Max amount of X we are willing to deposit
-        max_y: u64, // Max amount of Y we are willing to deposit
-        expiration: i64,) -> Result<()> {
-            assert_not_locked!(self.config.locked);
-            assert_not_expired!(expiration);
-            assert_non_zero!([amount, max_x, max_y]);
+        max_x: u64,  // Max amount of X we are willing to deposit
+        max_y: u64,  // Max amount of Y we are willing to deposit
+        expiration: i64,
+    ) -> Result<()> {
+        assert_not_locked!(self.config.locked);
+        assert_not_expired!(expiration);
+        assert_non_zero!([amount, max_x, max_y]);
 
-        let (x,y) = match self.mint_lp.supply== 0 && self.vault_x.amount == 0 && self.vault_y.amount == 0 {
+        let (x, y) = match self.mint_lp.supply == 0
+            && self.vault_x.amount == 0
+            && self.vault_y.amount == 0
+        {
             true => (max_x, max_y),
             false => {
                 let amount = ConstantProduct::xy_deposit_amounts_from_l(
-                    self.vault_x.amount, 
-                    self.vault_y.amount, 
-                    self.mint_lp.supply, 
-                    amount, 
-                    6
-                ).map_err(AmmError::from)?;
+                    self.vault_x.amount,
+                    self.vault_y.amount,
+                    self.mint_lp.supply,
+                    amount,
+                    6,
+                )
+                .map_err(AmmError::from)?;
                 (amount.x, amount.y)
             }
         };
 
-            // Check for slippage
+        // Check for slippage
         require!(x <= max_x && y <= max_y, AmmError::SlippageExceeded);
+
         self.deposit_tokens(true, x)?;
         self.deposit_tokens(false, y)?;
         self.mint_lp_tokens(amount)
-            
     }
 
     pub fn deposit_tokens(&self, is_x: bool, amount: u64) -> Result<()> {
         let (from, to, mint, decimals) = match is_x {
-            true => (self.user_x.to_account_info(), self.vault_x.to_account_info(), self.mint_x.to_account_info(), self.mint_x.decimals),
-            false => (self.user_y.to_account_info(), self.vault_y.to_account_info(), self.mint_y.to_account_info(), self.mint_y.decimals)
+            true => (
+                self.user_x.to_account_info(),
+                self.vault_x.to_account_info(),
+                self.mint_x.to_account_info(),
+                self.mint_x.decimals,
+            ),
+            false => (
+                self.user_y.to_account_info(),
+                self.vault_y.to_account_info(),
+                self.mint_y.to_account_info(),
+                self.mint_y.decimals,
+            ),
         };
 
         let cpi_account = TransferChecked {
             from,
             to,
             authority: self.user.to_account_info(),
-            mint,    
+            mint,
         };
 
         let cpi_context = CpiContext::new(self.token_program.to_account_info(), cpi_account);
@@ -118,12 +139,16 @@ impl<'info> Deposit<'info>{
         let cpi_account = MintTo {
             mint: self.mint_lp.to_account_info(),
             to: self.user_lp.to_account_info(),
-            authority: self.auth.to_account_info(),        
+            authority: self.auth.to_account_info(),
         };
 
         let seeds = &[&AUTH_SEED.as_ref()[..], &[self.config.auth_bump]];
         let signer_seeds = &[&seeds[..]];
-        let cpi_context = CpiContext::new_with_signer(self.token_program.to_account_info(), cpi_account, signer_seeds);
+        let cpi_context = CpiContext::new_with_signer(
+            self.token_program.to_account_info(),
+            cpi_account,
+            signer_seeds,
+        );
         mint_to(cpi_context, amount)
     }
 }

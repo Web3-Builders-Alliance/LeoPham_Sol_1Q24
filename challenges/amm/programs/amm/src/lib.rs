@@ -10,7 +10,7 @@ pub use constants::*;
 pub use instructions::*;
 pub use state::*;
 
-declare_id!("L67WX11tRistNEPugzZn93eakCBQpvh8c4bZLYtpEku");
+declare_id!("AGJvLGpYQvcu7p6kUn6EVguPHq69gzyykugwnussxYDZ");
 
 #[program]
 pub mod amm {
@@ -33,5 +33,20 @@ pub mod amm {
         expiration: i64,
     ) -> Result<()> {
         ctx.accounts.deposit(amount, max_x, max_y, expiration)
+    }
+
+    pub fn swap(
+        ctx: Context<Swap>,
+        is_x: bool,
+        amount: u64, // Amount of tokens we deposit
+        min: u64,    // Minimum amount of tokens I'd be willing to withdraw
+        expiration: i64,
+    ) -> Result<()> {
+        // Swap Token X for Token Y or vice versa
+        msg!("Swap Token X for Token Y or vice versa");
+        msg!("is_x: {}", is_x);
+        msg!("amount: {}", amount);
+        msg!("min: {}", min);
+        ctx.accounts.swap(is_x, amount, min, expiration)
     }
 }

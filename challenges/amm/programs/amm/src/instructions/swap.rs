@@ -1,13 +1,16 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
-    associated_token::AssociatedToken, token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked}
+    associated_token::AssociatedToken,
+    token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked},
 };
 use constant_product_curve::{ConstantProduct, LiquidityPair};
 
-use crate::{assert_non_zero, assert_not_expired, assert_not_locked, error::AmmError, Config, AUTH_SEED, CONFIG_SEED, LP_SEED};
+use crate::{
+    assert_non_zero, assert_not_expired, assert_not_locked, error::AmmError, Config, AUTH_SEED,
+    CONFIG_SEED, LP_SEED,
+};
 
 #[derive(Accounts)]
-#[instruction(seed: u64)]
 pub struct Swap<'info> {
     #[account(mut)]
     pub user: Signer<'info>,
@@ -20,7 +23,7 @@ pub struct Swap<'info> {
     )]
     pub mint_lp: Box<InterfaceAccount<'info, Mint>>,
     #[account(
-        mut, 
+        mut,
         associated_token::mint = mint_x,
         associated_token::authority = auth,
     )]
@@ -32,7 +35,7 @@ pub struct Swap<'info> {
     )]
     pub vault_y: Box<InterfaceAccount<'info, TokenAccount>>,
     #[account(
-        init_if_needed, 
+        init_if_needed,
         payer = user,
         associated_token::mint = mint_x,
         associated_token::authority = user,
@@ -53,12 +56,12 @@ pub struct Swap<'info> {
     )]
     pub user_lp: Box<InterfaceAccount<'info, TokenAccount>>,
     /// CHECK: This is safe because it's just used to sign
-    #[account(seeds = [AUTH_SEED.as_ref()], bump)]
+    #[account(seeds = [AUTH_SEED.as_ref()], bump = config.auth_bump)]
     pub auth: UncheckedAccount<'info>,
     #[account(
         has_one = mint_x,
         has_one = mint_y,
-        seeds = [CONFIG_SEED.as_ref(), seed.to_le_bytes().as_ref()],
+        seeds = [CONFIG_SEED.as_ref(), config.seed.to_le_bytes().as_ref()],
         bump = config.config_bump
     )]
     pub config: Box<Account<'info, Config>>,
@@ -82,10 +85,14 @@ impl<'info> Swap<'info> {
         )
         .map_err(AmmError::from)?;
 
+        msg!("curve: {:?}", curve);
+
         let p = match is_x {
             true => LiquidityPair::X,
             false => LiquidityPair::Y,
         };
+
+        msg!("p: {:?}", p);
 
         let res = curve.swap(p, amount, min).map_err(AmmError::from)?;
 
@@ -115,7 +122,7 @@ impl<'info> Swap<'info> {
             from,
             to,
             authority: self.user.to_account_info(),
-            mint
+            mint,
         };
 
         let ctx = CpiContext::new(self.token_program.to_account_info(), accounts);
@@ -143,7 +150,7 @@ impl<'info> Swap<'info> {
             from,
             to,
             authority: self.auth.to_account_info(),
-            mint
+            mint,
         };
 
         let seeds = &[&AUTH_SEED.as_ref()[..], &[self.config.auth_bump]];

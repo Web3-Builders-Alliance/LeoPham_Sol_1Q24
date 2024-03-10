@@ -9,6 +9,7 @@ import {
   Account,
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
+  getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 
 const commitment: web3.Commitment = "confirmed";
@@ -68,15 +69,15 @@ describe("amm", () => {
   // ATAs
   let initializer_x_ata: Account;
   let initializer_y_ata: Account;
-  let initializer_lp_ata: Account;
+  let initializer_lp_ata: web3.PublicKey;
   let user_x_ata: Account;
   let user_y_ata: Account;
 
-  let user_lp_ata: Account;
-  let vault_x_ata: Account;
-  let vault_y_ata: Account;
+  let user_lp_ata: web3.PublicKey;
+  let vault_x_ata: web3.PublicKey;
+  let vault_y_ata: web3.PublicKey;
 
-  let vault_lp_ata: Account;
+  let vault_lp_ata: web3.PublicKey;
 
   it("Airdrop", async () => {
     await Promise.all(
@@ -111,12 +112,10 @@ describe("amm", () => {
       mint_y,
       initializer.publicKey
     );
-    // initializer_lp_ata = await getOrCreateAssociatedTokenAccount(
-    //   connection,
-    //   initializer,
-    //   mint_lp,
-    //   initializer.publicKey
-    // );
+    initializer_lp_ata = getAssociatedTokenAddressSync(
+      mint_lp,
+      initializer.publicKey
+    );
     user_x_ata = await getOrCreateAssociatedTokenAccount(
       connection,
       user,
@@ -130,33 +129,12 @@ describe("amm", () => {
       user.publicKey
     );
 
-    // user_lp_ata = await getOrCreateAssociatedTokenAccount(
-    //   connection,
-    //   user,
-    //   mint_lp,
-    //   user.publicKey
-    // );
-    vault_x_ata = await getOrCreateAssociatedTokenAccount(
-      connection,
-      user,
-      mint_x,
-      auth,
-      true
-    );
-    vault_y_ata = await getOrCreateAssociatedTokenAccount(
-      connection,
-      user,
-      mint_y,
-      auth,
-      true
-    );
+    user_lp_ata = getAssociatedTokenAddressSync(mint_lp, user.publicKey);
+    vault_x_ata = getAssociatedTokenAddressSync(mint_x, auth, true);
+    vault_y_ata = getAssociatedTokenAddressSync(mint_y, auth, true);
 
-    // vault_lp_ata = await getOrCreateAssociatedTokenAccount(
-    //   connection,
-    //   user,
-    //   mint_lp,
-    //   auth
-    // );
+    vault_lp_ata = getAssociatedTokenAddressSync(mint_lp, auth, true);
+
     await mintTo(
       connection,
       user,
@@ -184,8 +162,66 @@ describe("amm", () => {
         mintX: mint_x,
         mintY: mint_y,
         mintLp: mint_lp,
-        vaultX: vault_x_ata.address,
-        vaultY: vault_y_ata.address,
+        vaultX: vault_x_ata,
+        vaultY: vault_y_ata,
+        auth,
+        config,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: web3.SystemProgram.programId,
+      })
+      .signers([initializer])
+      .rpc();
+    confirmTx(tx);
+  });
+
+  it("Deposit", async () => {
+    const tx = await program.methods
+      .deposit(
+        new BN(20 * 10 ** 6),
+        new BN(20 * 10 ** 6),
+        new BN(30 * 10 ** 6),
+        new BN(Math.floor(new Date().getTime() / 1000) + 600)
+      )
+      .accounts({
+        user: initializer.publicKey,
+        mintX: mint_x,
+        mintY: mint_y,
+        mintLp: mint_lp,
+        vaultX: vault_x_ata,
+        vaultY: vault_y_ata,
+        userX: initializer_x_ata.address,
+        userY: initializer_y_ata.address,
+        userLp: initializer_lp_ata,
+        auth,
+        config,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        systemProgram: web3.SystemProgram.programId,
+      })
+      .signers([initializer])
+      .rpc();
+    confirmTx(tx);
+  });
+
+  it("Swap X for Y", async () => {
+    const tx = await program.methods
+      .swap(
+        true,
+        new BN(5 * 10 ** 6),
+        new BN(5 * 10 ** 6),
+        new BN(Math.floor(new Date().getTime() / 1000) + 600)
+      )
+      .accounts({
+        user: initializer.publicKey,
+        mintX: mint_x,
+        mintY: mint_y,
+        mintLp: mint_lp,
+        vaultX: vault_x_ata,
+        vaultY: vault_y_ata,
+        userX: initializer_x_ata.address,
+        userY: initializer_y_ata.address,
+        userLp: initializer_lp_ata,
         auth,
         config,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
