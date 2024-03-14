@@ -1,7 +1,10 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
-  associated_token::AssociatedToken,
-  token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked, close_account, CloseAccount},
+    associated_token::AssociatedToken,
+    token_interface::{
+        close_account, transfer_checked, CloseAccount, Mint, TokenAccount, TokenInterface,
+        TransferChecked,
+    },
 };
 
 use crate::state::Escrow;
@@ -27,7 +30,7 @@ pub struct Take<'info> {
         has_one = maker,
         close = maker,
         seeds = [b"escrow", escrow.maker.as_ref(), escrow.seed.to_le_bytes().as_ref()],
-        bump 
+        bump = escrow.bump,
     )]
     pub escrow: Account<'info, Escrow>,
     #[account(
@@ -53,58 +56,52 @@ pub struct Take<'info> {
     pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
-  }
+}
 
-  impl<'info> Take<'info> {
+impl<'info> Take<'info> {
     pub fn pay_back(&mut self) -> Result<()> {
-      let cpi_program = self.token_program.to_account_info();
+        let cpi_program = self.token_program.to_account_info();
 
-      let cpi_accounts = TransferChecked {
-        from: self.taker_ata_y.to_account_info(),
-        to: self.maker_ata_y.to_account_info(),
-        authority: self.taker.to_account_info(),
-        mint: self.mint_y.to_account_info(),
-      };
-     
-      let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        let cpi_accounts = TransferChecked {
+            from: self.taker_ata_y.to_account_info(),
+            to: self.maker_ata_y.to_account_info(),
+            authority: self.taker.to_account_info(),
+            mint: self.mint_y.to_account_info(),
+        };
 
-      transfer_checked(cpi_ctx, self.escrow.amount, self.mint_y.decimals)
-      
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+
+        transfer_checked(cpi_ctx, self.escrow.amount, self.mint_y.decimals)
     }
     pub fn take(&mut self) -> Result<()> {
-      let cpi_program = self.token_program.to_account_info();
+        let cpi_program = self.token_program.to_account_info();
 
-      let cpi_accounts = TransferChecked {
-        from: self.vault.to_account_info(),
-        to: self.taker_ata_x.to_account_info(),
-        authority: self.escrow.to_account_info(),
-        mint: self.mint_x.to_account_info(),
-      };
-      let signer_seeds: [&[&[u8]]; 1] = [
-        &[
+        let cpi_accounts = TransferChecked {
+            from: self.vault.to_account_info(),
+            to: self.taker_ata_x.to_account_info(),
+            authority: self.escrow.to_account_info(),
+            mint: self.mint_x.to_account_info(),
+        };
+        let signer_seeds: [&[&[u8]]; 1] = [&[
             b"escrow",
             self.maker.to_account_info().key.as_ref(),
             &self.escrow.seed.to_le_bytes()[..],
             &[self.escrow.bump],
-        ],
-    ];
-      let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts,&signer_seeds);
+        ]];
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, &signer_seeds);
 
-      transfer_checked(cpi_ctx, self.escrow.amount, self.mint_x.decimals)?;
-      let close_accounts = CloseAccount {
-        account: self.vault.to_account_info(),
-        destination: self.maker.to_account_info(),
-        authority: self.escrow.to_account_info(),
-    };
+        transfer_checked(cpi_ctx, self.escrow.amount, self.mint_x.decimals)?;
+        let close_accounts = CloseAccount {
+            account: self.vault.to_account_info(),
+            destination: self.maker.to_account_info(),
+            authority: self.escrow.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new_with_signer(
+            self.token_program.to_account_info(),
+            close_accounts,
+            &signer_seeds,
+        );
 
-    let cpi_ctx = CpiContext::new_with_signer(
-        self.token_program.to_account_info(),
-        close_accounts,
-        &signer_seeds
-    );
-
-    close_account(cpi_ctx)
-      
+        close_account(cpi_ctx)
     }
-      
-  }
+}

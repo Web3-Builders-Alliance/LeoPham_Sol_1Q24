@@ -2,7 +2,10 @@ use anchor_lang::prelude::*;
 
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token_interface::{transfer_checked, Mint, TokenAccount, TokenInterface, TransferChecked, close_account, CloseAccount},
+    token_interface::{
+        close_account, transfer_checked, CloseAccount, Mint, TokenAccount, TokenInterface,
+        TransferChecked,
+    },
 };
 
 use crate::state::Escrow;
@@ -26,7 +29,7 @@ pub struct Refund<'info> {
         has_one = maker,
         close = maker,
         seeds = [b"escrow", escrow.maker.as_ref(), escrow.seed.to_le_bytes().as_ref()],
-        bump 
+        bump = escrow.bump,
     )]
     pub escrow: Account<'info, Escrow>,
     #[account(
@@ -41,10 +44,8 @@ pub struct Refund<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
 
-
 impl<'info> Refund<'info> {
     pub fn empty_vault(&mut self) -> Result<()> {
-       
         // Transfer the amount of mint_x from the vault to the maker_ata_x
         let cpi_program = self.token_program.to_account_info();
 
@@ -68,14 +69,12 @@ impl<'info> Refund<'info> {
     }
 
     pub fn close_vault(&mut self) -> Result<()> {
-        let signer_seeds: [&[&[u8]]; 1] = [
-            &[
-                b"escrow",
-                self.maker.to_account_info().key.as_ref(),
-                &self.escrow.seed.to_le_bytes()[..],
-                &[self.escrow.bump],
-            ],
-        ];
+        let signer_seeds: [&[&[u8]]; 1] = [&[
+            b"escrow",
+            self.maker.to_account_info().key.as_ref(),
+            &self.escrow.seed.to_le_bytes()[..],
+            &[self.escrow.bump],
+        ]];
 
         let close_accounts = CloseAccount {
             account: self.vault.to_account_info(),
@@ -86,7 +85,7 @@ impl<'info> Refund<'info> {
         let cpi_ctx = CpiContext::new_with_signer(
             self.token_program.to_account_info(),
             close_accounts,
-            &signer_seeds
+            &signer_seeds,
         );
 
         close_account(cpi_ctx)
